@@ -1,3 +1,20 @@
+/*
+ *
+ * A Skanti TRP8000 series radio serial interface program. It reads/writes Skanti serial commands on one
+ * serial port, and read/writes a simplified set of Elecraft K2 or K3 commands on another serial port.
+ *
+ * Developed because current amateur software has limited or no support for Skanti radios, however
+ * most of them support the Elecraft radios.
+ *
+ * This version polls data from the CU (control unit). For this to work CU software have to be
+ * version 92 or newer. Software was developed and tested on version 92. Version 80 will NOT work
+ * with polling, however other commands should work.
+ *
+ * Feel free to use or modify this code as to your liking.
+ *
+ * The inireader library is copied from https://github.com/benhoyt/inih
+ *
+ */
 
 #include <iostream>
 #include <ctime>
