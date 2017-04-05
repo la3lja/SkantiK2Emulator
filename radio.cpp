@@ -3,10 +3,11 @@
 
 Radio::Radio()
 {
-    initState = -1;
+    initState = 0;
     skantiExpectAck = false;
     skantiLinkActive = false;
     skantiReqStatus = false;
+    radioOff = false;
     resetCtr = 0;
     signalState = 0;
     cmdTimeout = 500;
@@ -143,7 +144,7 @@ void Radio::checkSerialK2()
 
     if (!k2TXbuffer.empty())
     {
-        std::cerr << " -> " << k2TXbuffer << std::endl;
+        //std::cerr << " -> " << k2TXbuffer << std::endl;
         if ((size_t)write(serHandleK2, k2TXbuffer.c_str(), k2TXbuffer.length()) == k2TXbuffer.length()) k2TXbuffer.clear();
     }
 }
@@ -166,10 +167,26 @@ void Radio::checkSerialSkanti()
 
         if (diff > 80000)
         {
+            ++ackTimeoutCtr;
             std::cerr << "ACK timeout..." << std::endl;
             skantiExpectAck = false;
         }
     }
+
+    if (ackTimeoutCtr > 50) // looks like radio is unresponsive, probably swithced off. Let's slow things down and wait for it to come back
+    {
+        radioOff = true;
+        ackTimeoutCtr = 0;
+    }
+
+    if (radioOff)
+    {
+        if (skantiRXbuffer.length() > 0)
+        {
+            radioOff = false;
+        }
+    }
+
     if (skantiReqStatus)
     {
         struct timeval timer2;
@@ -202,7 +219,7 @@ void Radio::checkSerialSkanti()
 
         if (diff > 250000)
         {
-            std::cerr << "Signal strength timeout" << std::endl;
+            //std::cerr << "Signal strength timeout" << std::endl;
             signalState = 0;
             if (!tx)
             {
@@ -221,7 +238,7 @@ void Radio::checkSerialSkanti()
 
     if (!skantiRXbuffer.empty())
     {
-           /*std::cerr << std::showbase // show the 0x prefix
+        /*std::cerr << std::showbase // show the 0x prefix
              << std::internal // fill between the prefix and the number
              << std::setfill('0'); // fill with 0s
 
@@ -232,15 +249,14 @@ void Radio::checkSerialSkanti()
     {
         if (skantiRXbuffer.length() > 1)
         {
-            //std::cerr << "Way too long rx buffer, now what??" << std::endl;
             skantiRXbuffer.clear();
             initState = 0;
             skantiCmdBuffer.clear();
         }
-        //std::cerr << "ACK routine" << std::endl;
 
         if (skantiRXbuffer[0] == ACK && skantiExpectAck)
         {
+            ackTimeoutCtr = 0;
             if (signalState == 1) ++signalState;    // CU acked our request for signal update, proceed
 
             cmdTimeout = 500;
@@ -283,21 +299,38 @@ void Radio::checkSerialSkanti()
         else skantiRXbuffer.clear();
     }
 
-    if (!skantiExpectAck && !skantiTXbuffer.empty())
+    if (!radioOff)
     {
-        if (!initSkantiLink()) initSkantiLink();
-        else sendSkantiData();
-    }
-    else if (!skantiExpectAck && !skantiCmdBuffer.empty() && skantiTXbuffer.empty() && signalState == 0 && !skantiReqStatus)
-    {
-        skantiTXbuffer += skantiCmdBuffer;
-
-        if (!tx)
+        if (!skantiExpectAck && !skantiTXbuffer.empty())
         {
-            skantiTXbuffer.push_back('\r');
-            skantiTXbuffer.push_back(EOT);
+            if (!initSkantiLink()) initSkantiLink();
+            else sendSkantiData();
         }
-        skantiCmdBuffer.clear();
+        else if (!skantiExpectAck && !skantiCmdBuffer.empty() && skantiTXbuffer.empty() && signalState == 0 && !skantiReqStatus)
+        {
+            skantiTXbuffer += skantiCmdBuffer;
+
+            if (!tx)
+            {
+                skantiTXbuffer.push_back('\r');
+                skantiTXbuffer.push_back(EOT);
+            }
+            skantiCmdBuffer.clear();
+        }
+    }
+    else
+    {
+        if (difftime(time(NULL), radioOffTimer) > 3)
+        {
+            time(&radioOffTimer);
+            initSkantiLink();
+        }
+        else
+        {
+            initState = 0;
+            skantiTXbuffer.clear();
+            skantiCmdBuffer.clear();
+        }
     }
 
     if (signalState > 0) updSignalStatus();
@@ -376,7 +409,7 @@ bool Radio::initSkantiLink()
         skantiRXbuffer.clear();
     }
 
-   else if (initState == 6 && diff > 2000 && !skantiRXbuffer.empty())
+    else if (initState == 6 && diff > 2000 && !skantiRXbuffer.empty())
     {
         if (skantiRXbuffer[0] == ACK)
         {
@@ -505,76 +538,115 @@ bool Radio::updSkantiStatus()
 
         int rxF = 100 * atoi(rx.c_str()), txF = 100 * atoi(stx.c_str());
 
-        if (rxF < 30000000 && rxF > 50000 && txF < 30000000 && txF > 50000)
+        if (rxF <= 30000000 && rxF >= 10000 && txF <= 30000000 && txF >= 10000)
         {
-            freqRX = rxF;
-            freqTX = txF;
+            if (freqRX != rxF || freqTX != txF)
+            {
+                freqRX = rxF;
+                freqTX = txF;
+                if (ai == 1) IF();
+                else if (ai > 1) { FA(); IF(); }
+            }
         }
-        if (skantiStatusBuffer[14] == '0') mode = USB;
-        else if (skantiStatusBuffer[14] == '1') mode = R3E;
-        else if (skantiStatusBuffer[14] == '2') mode = AM;
-        else if (skantiStatusBuffer[14] == '3') mode = CW;
-        else if (skantiStatusBuffer[14] == '4') mode = MCW;
-        else if (skantiStatusBuffer[14] == '5') mode = TELEX;
-        else mode = LSB;
+        MODE md;
+        if (skantiStatusBuffer[14] == '0') md = USB;
+        else if (skantiStatusBuffer[14] == '1') md = R3E;
+        else if (skantiStatusBuffer[14] == '2') md = AM;
+        else if (skantiStatusBuffer[14] == '3') md = CW;
+        else if (skantiStatusBuffer[14] == '4') md = MCW;
+        else if (skantiStatusBuffer[14] == '5') md = TELEX;
+        else md = LSB;
+        if (md != mode)
+        {
+            mode = md;
+            if (ai >1) IF();
+        }
         if (skantiStatusBuffer[17] == '0') tunerate = HZ10;
         else if (skantiStatusBuffer[17] == '1') tunerate = HZ100;
         else tunerate = HZ1000;
-        if (skantiStatusBuffer[21] == '0') filter = WIDE;
-        else if (skantiStatusBuffer[21] == '1') filter = VWIDE;
-        else if (skantiStatusBuffer[21] == '2') filter = NARROW;
-        else filter = VNARROW;
 
+        FILTER f;
+        if (skantiStatusBuffer[21] == '0') f = WIDE;
+        else if (skantiStatusBuffer[21] == '1') f= VWIDE;
+        else if (skantiStatusBuffer[21] == '2') f = NARROW;
+        else f = VNARROW;
+        if (f != filter)
+        {
+            filter = f;
+            if (ai == 1) IF();
+            if (ai > 1) { FW(); IF(); }
+        }
         std::string tmp;
         std::stringstream cmd;
         tmp.push_back(skantiStatusBuffer[15]);
         tmp.push_back(skantiStatusBuffer[16]);
         cmd << std::hex << tmp;
-        cmd >> vol;
-        vol = 186 - vol;
-        vol /= 2;
+        int v;
+        cmd >> v;
+        v = 186 - v;
+        v /= 2;
+        if (v != vol)
+        {
+            vol = v;
+            if (ai > 1) AG();
+        }
 
+        bool a, s;
         if (skantiStatusBuffer[22] == '0')
         {
-            agc = true;
-            agcSpeed = false;
+            a = true;
+            s = false;
         }
         else if (skantiStatusBuffer[22] == '1')
         {
-            agc = true;
-            agcSpeed = true;
+            a = true;
+            s = true;
         }
         else if (skantiStatusBuffer[22] == '2')
         {
-            agc = false;
-            agcSpeed = false;
+            a = false;
+            s = false;
         }
         else
         {
-            agc = false;
-            agcSpeed = true;
+            a = false;
+            s = true;
+        }
+        if (a != agc || s != agcSpeed)
+        {
+            agc = a;
+            agcSpeed = s;
+            if (ai > 1) GT();
         }
 
+        bool r, at;
         if (skantiStatusBuffer[23] == '0')
         {
-            rfamp = false;
-            att = false;
+            r = false;
+            at = false;
         }
         else if (skantiStatusBuffer[23] == '1')
         {
-            rfamp = true;
-            att = false;
+            r = true;
+            at = false;
         }
         else if (skantiStatusBuffer[23] == '2')
         {
-            rfamp = false;
-            att = true;
+            r = false;
+            at = true;
         }
         else
         {
-            rfamp = true;
-            att = true;
+            r = true;
+            at = true;
         }
+        if (r != rfamp || at != att)
+        {
+            rfamp = r;
+            att = at;
+            if (ai > 1) { PA(); RA(); }
+        }
+
         if(skantiStatusBuffer[24] == '0') pwr = FULL;
         else if(skantiStatusBuffer[24] == '1') pwr = MEDIUM;
         else pwr = LOW;

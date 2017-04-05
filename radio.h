@@ -24,13 +24,15 @@ enum SWITCH     { OFF, ON };
 class Radio
 {
     friend class Config;
-    time_t txTimer;
+    time_t txTimer, radioOffTimer;
     unsigned char ACK, NAK, SOH, STX, CAN, ETX, DLE, EOT;
-    std::string skantiStatusBuffer;
+    std::string skantiStatusBuffer, cmd;
 
     struct timeval timer, initTimer, ackTimer, statusTimer, sigTimer;
 
-    bool skantiExpectAck, skantiLinkActive, skantiReqStatus;
+    int ackTimeoutCtr;
+
+    bool skantiExpectAck, skantiLinkActive, skantiReqStatus, radioOff;
     int serHandleSkanti, serHandleK2, initState;
 
     void checkSerialSkanti();
@@ -42,6 +44,35 @@ class Radio
     bool sendSkantiData();
     char readSkantiData();
     bool writeToSkanti(char c);
+    void AG();
+    void AI();
+    void BG();
+    void BN();
+    void BW();
+    void DS();
+    void FA();
+    void FB();
+    void FW();
+    void GT();
+    void IF();
+    void K2();
+    void K3();
+    void LK();
+    void MD();
+    void NB();
+    void PA();
+    void PC();
+    void PO();
+    void PS();
+    void RA();
+    void RG();
+    void RV();
+    void RX();
+    void SM();
+    void SQ();
+    void TQ();
+    void TX();
+    void XF();
 
     int cmdTimeout, timeoutCtr;
     int ai, k2, k3;
