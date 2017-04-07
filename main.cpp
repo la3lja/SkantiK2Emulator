@@ -55,7 +55,7 @@ int main()
 
     while (true)
     {
-        delay(750);
+        delay(250);
         time(&now);
 
         if (c->updSignal > 0 && difftime(now, sigUpdate) > c->updSignal)

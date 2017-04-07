@@ -32,7 +32,9 @@ class Radio
 
     int ackTimeoutCtr;
 
-    bool skantiExpectAck, skantiLinkActive, skantiReqStatus, radioOff;
+    int an, nb;
+
+    bool skantiExpectAck, skantiLinkActive, skantiReqStatus, radioOff, fr, ft, split;
     int serHandleSkanti, serHandleK2, initState;
 
     void checkSerialSkanti();
@@ -45,13 +47,17 @@ class Radio
     char readSkantiData();
     bool writeToSkanti(char c);
     void AG();
+    void AN();
     void AI();
     void BG();
     void BN();
     void BW();
+    void DN();
     void DS();
     void FA();
     void FB();
+    void FR();
+    void FT();
     void FW();
     void GT();
     void IF();
@@ -65,14 +71,21 @@ class Radio
     void PO();
     void PS();
     void RA();
+    void RC();
+    void RD();
+    void RT();
+    void RU();
     void RG();
     void RV();
     void RX();
     void SM();
     void SQ();
+    void SW();
     void TQ();
+    void UP();
     void TX();
     void XF();
+    void XT();
 
     int cmdTimeout, timeoutCtr;
     int ai, k2, k3;
@@ -82,7 +95,7 @@ public:
 
     Radio();
     std::string serialportK2, serialportSkanti;
-    int freqRX, freqTX;
+    int freqRX, freqTX, vfoA, vfoB;
     int serSpeedK2, serSpeedSkanti;
 
     int signalRX, signalTX, signalState, resetCtr;
@@ -91,9 +104,9 @@ public:
     FILTER filter;
     PWR pwr;
     TUNERATE tunerate;
-    int txfreqDiff, rit, ritFreq, txTimeout;
+    int txfreqDiff, ritFreq, txTimeout, rxFreqFineOffset;
     int cts, rxRate, txRate, vol;
-    bool txOn, tx, agc, agcSpeed, rfamp, att, squelch, duplex, delayedTXFreqUpdate;
+    bool txOn, tx, agc, agcSpeed, rfamp, att, squelch, duplex, delayedTXFreqUpdate, rit, xit;
 
     bool openSkantiPort();
     bool openK2Port();

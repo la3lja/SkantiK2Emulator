@@ -8,14 +8,19 @@ Radio::Radio()
     skantiLinkActive = false;
     skantiReqStatus = false;
     radioOff = false;
+    ritFreq = 0; rit = false, xit = false, fr = false, ft = false, split = false;
+    rxFreqFineOffset = 0;
+    nb = 0;
+    an = 1;
     resetCtr = 0;
     signalState = 0;
-    cmdTimeout = 500;
+    cmdTimeout = 750;
     timeoutCtr = 0;
 
     ai = 0;
     k2 = 0;
     k3 = 0;
+    vfoA = vfoB = 0;
 
     gettimeofday(&timer, NULL);
     gettimeofday(&ackTimer, NULL);
@@ -184,6 +189,7 @@ void Radio::checkSerialSkanti()
         if (skantiRXbuffer.length() > 0)
         {
             radioOff = false;
+            timeoutCtr = 0;
         }
     }
 
@@ -309,7 +315,8 @@ void Radio::checkSerialSkanti()
         else if (!skantiExpectAck && !skantiCmdBuffer.empty() && skantiTXbuffer.empty() && signalState == 0 && !skantiReqStatus)
         {
             skantiTXbuffer += skantiCmdBuffer;
-
+            //if (skantiTXbuffer.length() > 3) cmdTimeout = 1200;
+            //else cmdTimeout = 500;
             if (!tx)
             {
                 skantiTXbuffer.push_back('\r');
@@ -343,7 +350,6 @@ bool Radio::initSkantiLink()
     struct timeval timer2;
     gettimeofday(&timer2, NULL);
     auto diff = (double)(timer2.tv_usec - initTimer.tv_usec) + (double)(timer2.tv_sec - initTimer.tv_sec) * 1000000;
-    //if (diff < 500000) cout << "debug diff " << diff  << " initstate " << initState << " rxbuf len " << skantiRXbuffer.length() << " txbuf len " << skantiTXbuffer.length() << " exp.ack: " << skantiExpectAck << std::endl;
 
     if (initState > 0 && initState < 5 && diff > 78000) initState = -1;        // Timeout, restarting
 
@@ -437,7 +443,6 @@ bool Radio::initSkantiLink()
             initState = 0;
             gettimeofday(&initTimer, NULL);
             skantiRXbuffer.clear();
-            //skantiTXbuffer.clear();
             ++resetCtr;
         }
 
@@ -464,7 +469,8 @@ bool Radio::sendSkantiData()
              << std::internal // fill between the prefix and the number
              << std::setfill('0'); // fill with 0s
 
-        for (unsigned i=0; i<skantiTXbuffer.length(); ++i) std::cerr << "TX: " << std::setw(3) << std::hex << (int)skantiTXbuffer[0] << " ";*/
+        //for (unsigned i=0; i<skantiTXbuffer.length(); ++i)
+        std::cerr << "TX: " << std::setw(3) << std::hex << (int)skantiTXbuffer[0] << " ";*/
 
         gettimeofday(&timer, NULL);
         if (write (serHandleSkanti, &skantiTXbuffer[0], 1) == 1)
@@ -540,13 +546,19 @@ bool Radio::updSkantiStatus()
 
         if (rxF <= 30000000 && rxF >= 10000 && txF <= 30000000 && txF >= 10000)
         {
+            if (vfoA == 0) vfoA = rxF;  // Initial setting
+            if (vfoB == 0) vfoB = rxF;  // Initial setting, faked vfo B frequency
+
             if (freqRX != rxF || freqTX != txF)
             {
-                freqRX = rxF;
+                int diff = rxF - freqRX;
+                if (diff < 100 && diff > -100) freqRX = rxF - diff;
+                else freqRX = rxF;
                 freqTX = txF;
                 if (ai == 1) IF();
                 else if (ai > 1) { FA(); IF(); }
             }
+            if (!fr) vfoA = freqRX; else vfoB = freqRX;
         }
         MODE md;
         if (skantiStatusBuffer[14] == '0') md = USB;
@@ -700,7 +712,7 @@ bool Radio::updSignalStatus()
         gettimeofday(&timer2, NULL);
         auto diff = (double)(timer2.tv_usec - sigTimer.tv_usec) + (double)(timer2.tv_sec - sigTimer.tv_sec) * 1000000;
 
-        if (signalState == 2 && diff > 80000 && !skantiRXbuffer.empty()) // waited long enough for this shit
+        if (signalState == 2 && diff > 80000 && !skantiRXbuffer.empty())
         {
             signalRX = (int)skantiRXbuffer[0] - 96;
             skantiRXbuffer.clear();
