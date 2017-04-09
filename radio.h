@@ -33,6 +33,7 @@ class Radio
     int ackTimeoutCtr;
 
     int an, nb;
+    int rxFineOffsetA, rxFineOffsetB;
 
     bool skantiExpectAck, skantiLinkActive, skantiReqStatus, radioOff, fr, ft, split;
     int serHandleSkanti, serHandleK2, initState;
@@ -104,7 +105,7 @@ public:
     FILTER filter;
     PWR pwr;
     TUNERATE tunerate;
-    int txfreqDiff, ritFreq, txTimeout, rxFreqFineOffset;
+    int txfreqDiff, ritFreq, txTimeout;
     int cts, rxRate, txRate, vol;
     bool txOn, tx, agc, agcSpeed, rfamp, att, squelch, duplex, delayedTXFreqUpdate, rit, xit;
 

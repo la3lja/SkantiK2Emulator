@@ -145,8 +145,8 @@ void Radio::AN()    // AN (Antenna Selection; GET/SET) SET/RSP format: ANn; Fake
 void Radio::BG()    // BG (Bargraph Read; GET only) RSP format: BGnn;
 {
     std::stringstream buf;
-    if (!tx) buf << "BG"  << std::setw(2) << std::setfill('0') << (int)(0.5+(signalRX/2)) << "R;";
-    else buf << "BG" << std::setw(2) << std::setfill('0') << (int)(0.5+(signalTX/2)) << "T;";
+    if (!tx) buf << "BG"  << std::setw(2) << std::setfill('0') << (int)(1+(signalRX/2)) << "R;";
+    else buf << "BG" << std::setw(2) << std::setfill('0') << (int)(1+(signalTX/2)) << "T;";
 
     k2TXbuffer += buf.str();
 }
@@ -191,25 +191,33 @@ void Radio::DN()    // DN (Move VFO or Menu Entry/Parameter Down; SET only) Basi
     {
         if (tunerate != HZ10) { skantiCmdBuffer += "w0\r"; tunerate = HZ10; }
         skantiCmdBuffer += '=';
-        freqRX -= 10;
-        if (!fr) vfoA = freqRX; else vfoB = freqRX;
+        if (!fr) rxFineOffsetA -= 10; else rxFineOffsetB -= 10;
     }
     else                    // Extended
     {
         if (cmd[2] != '4')
         {
             if (tunerate != HZ10) { skantiCmdBuffer += "w0\r"; tunerate = HZ10; }
-            if (cmd[2] == '1') { skantiCmdBuffer += '='; freqRX -= 10; if (!fr) vfoA = freqRX; else vfoB = freqRX;}
-            else if (cmd[2] == '2') { skantiCmdBuffer += "=\r="; freqRX -= 20; if (!fr) vfoA = freqRX; else vfoB = freqRX;}
-            else if (cmd[2] == '3') { skantiCmdBuffer += "=\r=\r=\r=\r="; freqRX -= 50; if (!fr) vfoA = freqRX; else vfoB = freqRX;}
+            if (cmd[2] == '2') { skantiCmdBuffer += "=\r="; (!fr?rxFineOffsetA-=20:rxFineOffsetB-=20); }
+            else if (cmd[2] == '3') { skantiCmdBuffer += "=\r=\r=\r=\r="; (!fr?rxFineOffsetA-=50:rxFineOffsetB-=50); }
+            else { skantiCmdBuffer += '='; (!fr?rxFineOffsetA-=10:rxFineOffsetB-=10);}
         }
         else
         {
             if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
             skantiCmdBuffer += '=';
             freqRX -= 1000;
-            if (!fr) vfoA = freqRX; else vfoB = freqRX;
         }
+    }
+    if (!fr)
+    {
+        if (rxFineOffsetA <= -100) { rxFineOffsetA += 100; freqRX -= 100; }
+        vfoA = freqRX + rxFineOffsetA;
+    }
+    else
+    {
+        if (rxFineOffsetB <= -100) { rxFineOffsetB += 100; freqRX -= 100; }
+        vfoB = freqRX + rxFineOffsetB;
     }
 }
 
@@ -246,27 +254,41 @@ void Radio::FA()    // FA and FB (VFO A/B Frequency; GET/SET) SET/RSP format: FA
         int tmp = atoi(cmd.c_str());
         if (tmp <= 30000000 && tmp >= 10000)
         {
-            if (!fr && tmp != vfoA + rxFreqFineOffset)
+            int diff = tmp - vfoA + rxFineOffsetA;
+            if (!fr && diff < 100 && diff > -100 && diff != 0) // 10 Hz update
             {
-                std::stringstream buf;
-                if (delayedTXFreqUpdate) buf << ":";
-                else buf << ":;";
-                buf << tmp / 100 << "\r";
-                skantiCmdBuffer += buf.str();
-                rxFreqFineOffset = 0;
-                freqRX = vfoA;
+                if (diff > 0) UP();
+                else DN();
             }
-            vfoA = tmp;
-            if (!delayedTXFreqUpdate && !split) freqTX = tmp;
+            else if (!split && !fr && tmp != vfoA)
+            {
+                rxFineOffsetA = 0;
+                std::stringstream buf;
+                buf << (delayedTXFreqUpdate?":":":;") << tmp / 100 << "\r";
+                skantiCmdBuffer += buf.str();
+                freqRX = tmp;
+                if (!delayedTXFreqUpdate) freqTX = tmp;
+                vfoA = tmp;
+            }
+            else if (split)
+            {
+                rxFineOffsetA = 0;
+                std::stringstream buf;
+                buf << (!fr?":":";") << (int)(tmp / 100) << '\r';
+                skantiCmdBuffer += buf.str();
+                !fr?freqRX = tmp:freqTX = tmp;
+                vfoA = tmp;
+            }
+            else vfoA = tmp;
             if (ai == 1) IF();
-            else if (ai == 2) { cmd = "FA"; FA(); IF(); }
+            else if (ai == 2) { cmd.clear(); FA(); IF(); }
         }
         else std::cerr << "Frequency out of range" << std::endl;
     }
     else
     {
         std::stringstream buf;
-        buf << "FA" << std::setw(11) << std::setfill('0') << vfoA + rxFreqFineOffset << ";";
+        buf << "FA" << std::setw(11) << std::setfill('0') << vfoA << ";";
         k2TXbuffer += buf.str();
     }
 }
@@ -282,28 +304,42 @@ void Radio::FB() // FB sets a virtual VFO created in SW only
         int tmp = atoi(cmd.c_str());
         if (tmp <= 30000000 && tmp >= 10000)
         {
-            if (fr && tmp != vfoB)
+            int diff = tmp - vfoB + rxFineOffsetB;
+            if (fr && diff < 100 && diff > -100)
             {
-                std::stringstream buf;
-                if (delayedTXFreqUpdate) buf << ":";
-                else buf << ":;";
-                buf << tmp / 100 << "\r";
-                skantiCmdBuffer += buf.str();
-                rxFreqFineOffset = 0;
-                freqRX = vfoB;
+                if (diff > 0) UP();
+                else DN();
             }
-            vfoB = tmp;
-            if (!delayedTXFreqUpdate && !split) freqTX = tmp;
+            else if (!split && fr && tmp != vfoB)
+            {
+                rxFineOffsetB = 0;
+                std::stringstream buf;
+                buf << (delayedTXFreqUpdate?":":":;") << (int)(tmp / 100) << '\r';
+                skantiCmdBuffer += buf.str();
+                freqRX = tmp;
+                if (!delayedTXFreqUpdate) freqTX = tmp;
+                vfoB = tmp;
+            }
+            else if (split)
+            {
+                rxFineOffsetB = 0;
+                std::stringstream buf;
+                buf << (fr?":":";") << (int)(tmp / 100) << '\r';
+                skantiCmdBuffer += buf.str();
+                fr?freqRX = tmp:freqTX = tmp;
+                vfoB = tmp;
+            }
+            else vfoB = tmp;
 
             if (ai == 1) IF();
-            else if (ai == 2) { cmd = "FB"; FB(); IF(); }
+            else if (ai == 2) { cmd.clear(); FB(); IF(); }
         }
         else std::cerr << "Frequency out of range" << std::endl;
     }
     else
     {
         std::stringstream buf;
-        buf << "FB" << std::setw(11) << std::setfill('0') << vfoB << ";";
+        buf << "FB" << std::setw(11) << std::setfill('0') << vfoB << ';';
         k2TXbuffer += buf.str();
     }
 }
@@ -316,16 +352,18 @@ void Radio::FR()    // FR (RX VFO Assignment and SPLIT Cancel; GET/SET) SET/RSP 
         {
             fr = ft = true;
             std::stringstream buf;
-            buf << ":" << (int)(vfoB / 100) << "\r";
+            buf << (delayedTXFreqUpdate?":":":;") << (int)(vfoB / 100) << '\r';
             freqRX = vfoB;
+            if (!delayedTXFreqUpdate) freqTX = vfoB;
             skantiCmdBuffer += buf.str();
         }
         else
         {
             fr = ft = false;
             std::stringstream buf;
-            buf << ":" << (int)(vfoA / 100) << "\r";
+            buf << (delayedTXFreqUpdate?":":":;") << (int)(vfoA / 100) << '\r';
             freqRX = vfoA;
+            if (!delayedTXFreqUpdate) freqTX = vfoA;
             skantiCmdBuffer += buf.str();
         }
     }
@@ -339,6 +377,7 @@ void Radio::FT()    // FT (TX VFO Assignment and optional SPLIT Enable; GET/SET)
 {
     if (cmd.length() == 3)
     {
+        std::stringstream buf;
         if (cmd[2] == '1') ft = true;
         else ft = false;
         if ((fr && !ft) || (!fr && ft))
@@ -347,20 +386,33 @@ void Radio::FT()    // FT (TX VFO Assignment and optional SPLIT Enable; GET/SET)
 
             if (!fr)
             {
-                std::stringstream buf;
-                buf << ":" << (int)(vfoA / 100) << "\r;" << (int)(vfoB/100) << "\r";
+                buf << ":" << (int)(vfoA/100) << "\r;" << (int)(vfoB/100) << '\r';
                 skantiCmdBuffer += buf.str();
                 freqRX = vfoA; freqTX = vfoB;
             }
             else
             {
-                std::stringstream buf;
-                buf << ":" << (int)(vfoB / 100) << "\r;" << (int)(vfoB/100) << "\r";
+                buf << ":" << (int)(vfoB/100) << "\r;" << (int)(vfoA/100) << '\r';
                 skantiCmdBuffer += buf.str();
-                freqRX = vfoA; freqTX = vfoA;
+                freqRX = vfoB; freqTX = vfoA;
             }
         }
-        else split = false;
+        else
+        {
+            split = false;
+            if (!fr)
+            {
+                buf << ":;" << (int)(vfoA/100) << '\r';
+                skantiCmdBuffer += buf.str();
+                freqRX = freqTX = vfoA;
+            }
+            else
+            {
+                buf << ":;" << (int)(vfoB/100) << '\r';
+                skantiCmdBuffer += buf.str();
+                freqRX = freqTX = vfoB;
+            }
+        }
     }
     else
     {
@@ -460,7 +512,7 @@ void Radio::GT() // GT (AGC Time Constant; GET/SET)Basic SET/RSP format: GTnnn; 
 void Radio::IF() // IF (Transceiver Information; GET only)RSP format: IF[f]*****+yyyyrx*00tmvspb01*;
 {
     std::stringstream buf;
-    buf << "IF" << std::setw(11) << std::setfill('0') << (fr?vfoA+rxFreqFineOffset:vfoB);
+    buf << "IF" << std::setw(11) << std::setfill('0') << (fr?vfoA:vfoB);
     buf << "     " << (ritFreq >= 0?"+":"-") << std::setw(4) << std::setfill('0') << (ritFreq<0?ritFreq*-1:ritFreq) << (rit?"1":"0") << "0 00";
     if (tx) buf << "1"; else buf << "0";
     switch(mode)
@@ -513,8 +565,15 @@ void Radio::K3() // K3 * (Command Mode; GET/SET)SET/RSP format: K3n;
 
 void Radio::LK() // LK (VFO Lock; GET/SET)SET/RSP format: LKn;
 {
-    if (cmd[2] != '$') k2TXbuffer += "LK0;";
-    else k2TXbuffer += "LK$0;";
+    if (cmd.length() == 3)
+    {
+        // TODO... but what for add VFO lock on a Skanti??
+    }
+    else
+    {
+        if (cmd[2] != '$') k2TXbuffer += "LK0;";
+        else k2TXbuffer += "LK$0;";
+    }
 }
 
 void Radio::MD() // MD (Operating Mode; GET/SET)SET/RSP format: MDn;
@@ -781,9 +840,42 @@ void Radio::SW()    // SW (Switch Emulation and Menu Selection; SET only) SET fo
     }
     else if (tmp == 10)              // Equalize A = B
     {
-        freqRX = vfoB = vfoA;
+        freqRX = vfoA;
+        vfoB = vfoA;
+        FA(); FB(); IF();
     }
-    else if (tmp == 20) skantiCmdBuffer += 'R';  // tune
+    else if (tmp == 20)
+    {
+        if (!split && !fr && freqTX != vfoA)
+        {
+            std::stringstream buf;
+            buf << ";" << (int)(vfoA/100) << '\r';
+            skantiCmdBuffer += buf.str();
+            freqTX = vfoA;
+        }
+        else if (!split && fr && freqTX != vfoB)
+        {
+            std::stringstream buf;
+            buf << ";" << (int)(vfoB/100) << '\r';
+            skantiCmdBuffer += buf.str();
+            freqTX = vfoB;
+        }
+        else if (split && !ft && freqTX != vfoA)
+        {
+            std::stringstream buf;
+            buf << ";" << (int)(vfoA/100) << '\r';
+            skantiCmdBuffer += buf.str();
+            freqTX = vfoA;
+        }
+        else if (split && ft && freqTX != vfoB)
+        {
+            std::stringstream buf;
+            buf << ";" << (int)(vfoB/100) << '\r';
+            skantiCmdBuffer += buf.str();
+            freqTX = vfoB;
+        }
+        skantiCmdBuffer += 'R';  // tune
+    }
     else if (tmp == 26)          // split mode
     {
         if (!split)
@@ -793,14 +885,16 @@ void Radio::SW()    // SW (Switch Emulation and Menu Selection; SET only) SET fo
             if (!fr)
             {
                 std::stringstream buf;
-                buf << ":" << (int)(vfoA / 100) << ";" << (int)(vfoB/100) << "\r";
+                buf << ":" << (int)(vfoA / 100) << "\r;" << (int)(vfoB/100) << "\r";
                 skantiCmdBuffer += buf.str();
+                freqRX = vfoA; freqTX = vfoB;
             }
             else
             {
                 std::stringstream buf;
-                buf << ":" << (int)(vfoB / 100) << ";" << (int)(vfoA/100) << "\r";
+                buf << ":" << (int)(vfoB / 100) << "\r;" << (int)(vfoA/100) << "\r";
                 skantiCmdBuffer += buf.str();
+                freqRX = vfoB; freqTX = vfoA;
             }
         }
         else
@@ -812,12 +906,14 @@ void Radio::SW()    // SW (Switch Emulation and Menu Selection; SET only) SET fo
                 std::stringstream buf;
                 buf << ":;" << (int)(vfoA / 100) << "\r";
                 skantiCmdBuffer += buf.str();
+                freqRX = freqTX = vfoA;
             }
             else
             {
                 std::stringstream buf;
-                buf << ":" << (int)(vfoB / 100) << "\r";
+                buf << ":;" << (int)(vfoB / 100) << "\r";
                 skantiCmdBuffer += buf.str();
+                freqRX = freqTX = vfoB;
             }
         }
     }
@@ -835,14 +931,14 @@ void Radio::TX() // TX (Transmit Mode; SET only) SET format: TX;
     if (!split && !fr && vfoA != freqTX)
     {
         std::stringstream buf;
-        buf << ";" << vfoA / 100;
+        buf << ";" << (int)((vfoA + rxFineOffsetA) / 100);
         skantiCmdBuffer += buf.str();
         freqTX = vfoA;
     }
     else if (!split && fr && vfoB != freqTX)
     {
         std::stringstream buf;
-        buf << ";" << vfoB / 100;
+        buf << ";" << (int)((vfoB + rxFineOffsetB) / 100);
         skantiCmdBuffer += buf.str();
         freqTX = vfoB;
     }
@@ -852,14 +948,14 @@ void Radio::TX() // TX (Transmit Mode; SET only) SET format: TX;
         if (!ft && freqTX != vfoA)
         {
             std::stringstream buf;
-            buf << ";" << vfoA / 100;
+            buf << ";" << (int)((vfoA + rxFineOffsetA) / 100);
             skantiCmdBuffer += buf.str();
             freqTX = vfoA;
         }
         else if (ft && freqTX != vfoB)
         {
             std::stringstream buf;
-            buf << ";" << vfoB / 100;
+            buf << ";" << (int)((vfoB + rxFineOffsetB) / 100);
             skantiCmdBuffer += buf.str();
             freqTX = vfoB;
         }
@@ -875,28 +971,36 @@ void Radio::UP()    // UP (Move VFO or Menu Entry/Parameter Up; SET only) See DN
     {
         if (tunerate != HZ10) { skantiCmdBuffer += "w0\r"; tunerate = HZ10; }
         skantiCmdBuffer += '>';
-        freqRX += 10;
-        if (!fr) vfoA = freqRX; else vfoB = freqRX;
+        if (!fr) rxFineOffsetA += 10; else rxFineOffsetB += 10;
     }
     else                    // Extended
     {
         if (cmd[2] != '4')
         {
             if (tunerate != HZ10) { skantiCmdBuffer += "w0\r"; tunerate = HZ10; }
-            if (cmd[2] == '1') { skantiCmdBuffer += '>'; freqRX += 10; if (!fr) vfoA = freqRX; else vfoB = freqRX;}
-            else if (cmd[2] == '2') { skantiCmdBuffer += ">\r>"; freqRX += 20; if (!fr) vfoA = freqRX; else vfoB = freqRX;}
-            else if (cmd[2] == '3') { skantiCmdBuffer += ">\r>\r>\r>\r>"; freqRX += 50; if (!fr) vfoA = freqRX; else vfoB = freqRX;}
+            if (cmd[2] == '2') { skantiCmdBuffer += ">\r>"; (!fr?rxFineOffsetA+=20:rxFineOffsetB+=20); }
+            else if (cmd[2] == '3') { skantiCmdBuffer += ">\r>\r>\r>\r>"; (!fr?rxFineOffsetA+=50:rxFineOffsetB+=50); }
+            else { skantiCmdBuffer += '>'; (!fr?rxFineOffsetA+=10:rxFineOffsetB+=10);}
         }
         else
         {
             if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
             skantiCmdBuffer += '>';
             freqRX += 1000;
-            if (!fr) vfoA = freqRX; else vfoB = freqRX;
         }
     }
-    
+    if (!fr)
+    {
+        if (rxFineOffsetA >= 100) { rxFineOffsetA -= 100; freqRX += 100; }
+        vfoA = freqRX + rxFineOffsetA;
+    }
+    else
+    {
+        if (rxFineOffsetB >= 100) { rxFineOffsetB -= 100; freqRX += 100; }
+        vfoB = freqRX + rxFineOffsetB;
+    }
 }
+
 
 void Radio::XF() // K3: XF $ (XFIL Number; GET only) RSP format: XFn;
 {

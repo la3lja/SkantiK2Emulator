@@ -9,7 +9,7 @@ Radio::Radio()
     skantiReqStatus = false;
     radioOff = false;
     ritFreq = 0; rit = false, xit = false, fr = false, ft = false, split = false;
-    rxFreqFineOffset = 0;
+    rxFineOffsetA = rxFineOffsetB = 0;
     nb = 0;
     an = 1;
     resetCtr = 0;
@@ -201,7 +201,7 @@ void Radio::checkSerialSkanti()
 
         if (diff > 2000000)
         {
-            std::cerr << "CMD 29 timeout" << std::endl;
+            //std::cerr << "CMD 29 timeout" << std::endl;
             skantiReqStatus = false;
             ++timeoutCtr;
         }
@@ -294,7 +294,7 @@ void Radio::checkSerialSkanti()
         }
         else if (signalState == 0 && !skantiReqStatus && skantiRXbuffer[0] != NAK && skantiRXbuffer[0] != ACK && skantiRXbuffer[0] != 0)
         {
-            //std::cerr << "received sth else: " << std::showbase << std::internal << std::setfill('0') << std::setw(3) << std::hex << (int)skantiRXbuffer[0] << " , sending ACK back, I am sure CUR will be happy!" << std::endl;
+            //std::cerr << "received sth else: " << std::showbase << std::internal << std::setfill('0') << std::setw(3) << std::hex << (int)skantiRXbuffer[0] << " , sending ACK back" << std::endl;
             skantiTXbuffer.push_back(ACK);
             skantiRXbuffer.clear();
         }
@@ -549,16 +549,17 @@ bool Radio::updSkantiStatus()
             if (vfoA == 0) vfoA = rxF;  // Initial setting
             if (vfoB == 0) vfoB = rxF;  // Initial setting, faked vfo B frequency
 
-            if (freqRX != rxF || freqTX != txF)
+            if ((!fr && freqRX != rxF) || (fr && freqRX != rxF))
             {
-                int diff = rxF - freqRX;
-                if (diff < 100 && diff > -100) freqRX = rxF - diff;
-                else freqRX = rxF;
-                freqTX = txF;
+                freqRX = rxF;
+                if ((!fr && rxFineOffsetA < 0) || (fr && rxFineOffsetB < 0)) freqRX += 100;
                 if (ai == 1) IF();
-                else if (ai > 1) { FA(); IF(); }
+                else if (ai > 1) { (!fr?FA():FB()); IF(); }
             }
-            if (!fr) vfoA = freqRX; else vfoB = freqRX;
+            if (freqTX != txF) freqTX = txF;
+
+            if (!fr) vfoA = freqRX + rxFineOffsetA; else vfoB = freqRX + rxFineOffsetB;
+            //if (!ft) vfoA = freqTX; else vfoB = freqTX;
         }
         MODE md;
         if (skantiStatusBuffer[14] == '0') md = USB;
@@ -571,7 +572,8 @@ bool Radio::updSkantiStatus()
         if (md != mode)
         {
             mode = md;
-            if (ai >1) IF();
+            if (ai == 1) IF();
+            else if (ai > 1) { MD(); IF(); }
         }
         if (skantiStatusBuffer[17] == '0') tunerate = HZ10;
         else if (skantiStatusBuffer[17] == '1') tunerate = HZ100;
