@@ -254,11 +254,39 @@ void Radio::FA()    // FA and FB (VFO A/B Frequency; GET/SET) SET/RSP format: FA
         int tmp = atoi(cmd.c_str());
         if (tmp <= 30000000 && tmp >= 10000)
         {
-            int diff = tmp - vfoA + rxFineOffsetA;
-            if (!fr && diff < 100 && diff > -100 && diff != 0) // 10 Hz update
+            int diff = tmp - vfoA;
+            if (!fr && diff < 100 && diff > -100 && diff != 0) // 10 Hz tune
             {
                 if (diff > 0) UP();
                 else DN();
+            }
+            else if (diff < 1000 && diff > -1000 && diff != 0) // 100 Hz tune
+            {
+                if (!fr && tunerate != HZ100) { skantiCmdBuffer += "w1\r"; tunerate = HZ100; }
+                diff /= 100;
+                if (diff < 0)
+                {
+                    for (int i=0; i>diff; --i) { skantiCmdBuffer += "=\r"; vfoA -= 100; }
+                }
+                else
+                {
+                    for (int i=0; i<diff; ++i) { skantiCmdBuffer += ">\r"; vfoA += 100; }
+                }
+                freqRX = vfoA - rxFineOffsetA;
+            }
+            else if (!fr && diff <= 10000 && diff >= -10000 && diff != 0) // 1 kHz tune
+            {
+                if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
+                diff /= 1000;
+                if (diff < 0)
+                {
+                    for (int i=0; i>diff; --i) { skantiCmdBuffer += "=\r"; vfoA -= 1000; }
+                }
+                else
+                {
+                    for (int i=0; i<diff; ++i) { skantiCmdBuffer += ">\r"; vfoA += 1000; }
+                }
+                freqRX = vfoA - rxFineOffsetA;
             }
             else if (!split && !fr && tmp != vfoA)
             {
@@ -565,7 +593,7 @@ void Radio::K3() // K3 * (Command Mode; GET/SET)SET/RSP format: K3n;
 
 void Radio::LK() // LK (VFO Lock; GET/SET)SET/RSP format: LKn;
 {
-    if (cmd.length() == 3)
+    if (cmd.length() == 3 && cmd[2] != '$')
     {
         // TODO... but what for add VFO lock on a Skanti??
     }
