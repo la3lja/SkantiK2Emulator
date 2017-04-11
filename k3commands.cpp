@@ -332,11 +332,39 @@ void Radio::FB() // FB sets a virtual VFO created in SW only
         int tmp = atoi(cmd.c_str());
         if (tmp <= 30000000 && tmp >= 10000)
         {
-            int diff = tmp - vfoB + rxFineOffsetB;
-            if (fr && diff < 100 && diff > -100)
+            int diff = tmp - vfoB;
+            if (fr && diff < 100 && diff > -100 && diff != 0)
             {
                 if (diff > 0) UP();
                 else DN();
+            }
+            else if (fr && diff < 1000 && diff > -1000 && diff != 0) // 100 Hz tune
+            {
+                if (fr && tunerate != HZ100) { skantiCmdBuffer += "w1\r"; tunerate = HZ100; }
+                diff /= 100;
+                if (diff < 0)
+                {
+                    for (int i=0; i>diff; --i) { skantiCmdBuffer += "=\r"; vfoB -= 100; }
+                }
+                else
+                {
+                    for (int i=0; i<diff; ++i) { skantiCmdBuffer += ">\r"; vfoB += 100; }
+                }
+                freqRX = vfoB - rxFineOffsetB;
+            }
+            else if (fr && diff <= 10000 && diff >= -10000 && diff != 0) // 1 kHz tune
+            {
+                if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
+                diff /= 1000;
+                if (diff < 0)
+                {
+                    for (int i=0; i>diff; --i) { skantiCmdBuffer += "=\r"; vfoB -= 1000; }
+                }
+                else
+                {
+                    for (int i=0; i<diff; ++i) { skantiCmdBuffer += ">\r"; vfoB += 1000; }
+                }
+                freqRX = vfoB - rxFineOffsetB;
             }
             else if (!split && fr && tmp != vfoB)
             {
@@ -540,7 +568,7 @@ void Radio::GT() // GT (AGC Time Constant; GET/SET)Basic SET/RSP format: GTnnn; 
 void Radio::IF() // IF (Transceiver Information; GET only)RSP format: IF[f]*****+yyyyrx*00tmvspb01*;
 {
     std::stringstream buf;
-    buf << "IF" << std::setw(11) << std::setfill('0') << (fr?vfoA:vfoB);
+    buf << "IF" << std::setw(11) << std::setfill('0') << (!fr?vfoA:vfoB);
     buf << "     " << (ritFreq >= 0?"+":"-") << std::setw(4) << std::setfill('0') << (ritFreq<0?ritFreq*-1:ritFreq) << (rit?"1":"0") << "0 00";
     if (tx) buf << "1"; else buf << "0";
     switch(mode)

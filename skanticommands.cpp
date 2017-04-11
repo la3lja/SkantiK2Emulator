@@ -38,7 +38,7 @@ bool Radio::openSkantiPort()
     options.c_oflag &= ~OPOST;
 
     tcsetattr(serHandleSkanti, TCSANOW, &options);
-    skantiTXbuffer += "\7\7\7";
+    skantiTXbuffer += "\7\7\7";     // sends 3 short "beeps" from Skanti indicating comms are ok
     //updSkantiStatus();
     return true;
 }
@@ -53,7 +53,7 @@ void Radio::updSkantiComm()
 
 void Radio::checkSerialSkanti()
 {
-    char byte = '\0';
+    char byte;
     int bytesRead;
     do
     {
@@ -289,7 +289,6 @@ bool Radio::initSkantiLink()
         gettimeofday(&initTimer, NULL);
         skantiRXbuffer.clear();
     }
-
 
     else if (initState == 3 && diff > 12000 && !skantiRXbuffer.empty())
     {
