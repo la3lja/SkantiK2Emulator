@@ -8,7 +8,8 @@ SOURCES += main.cpp \
     radio.cpp \
     inih/INIReader.cpp \
     inih/ini.c \
-    k3commands.cpp
+    k3commands.cpp \
+    skanticommands.cpp
 
 GIT_VERSION = $$system(git --git-dir $$PWD/.git --work-tree $$PWD describe --always --tags --long)
 DEFINES += GIT_VERSION=\\\"$$GIT_VERSION\\\"

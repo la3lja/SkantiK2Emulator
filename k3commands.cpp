@@ -1047,3 +1047,71 @@ void Radio::XT()    // XT (XIT Control; GET/SET) SET/RSP format: XTn;
         if (xit) k2TXbuffer += "XT1;"; else k2TXbuffer += "XT0;";
     }
 }
+
+bool Radio::openK2Port()
+{
+    int flags;
+    serHandleK2 = open(serialportK2.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
+    if (serHandleK2 == -1)
+    {
+        perror("Can't open port: ");
+        return false;
+    }
+
+    flags = fcntl(serHandleK2, F_GETFL);
+    flags |= O_NONBLOCK;
+
+    if (fcntl(serHandleK2, F_SETFL, flags) < 0)
+    {
+        perror("fcntl failed: ");
+        return false;
+    }
+    struct termios options1;
+
+    speed_t br;
+
+    if (serSpeedK2 == 2400) br = B2400;
+    else if (serSpeedK2 == 38400) br = B38400;
+    else if (serSpeedK2 == 9600) br = B9600;
+    else if (serSpeedK2 == 19200) br = B19200;
+    else br = B4800;
+
+    tcgetattr(serHandleK2, &options1);
+    cfsetispeed(&options1, br);
+    cfsetospeed(&options1, br);
+    options1.c_cflag |= (CLOCAL | CREAD);
+    options1.c_cflag &= ~PARENB;
+    options1.c_cflag &= ~CSTOPB;
+    options1.c_cflag &= ~CSIZE;
+    options1.c_cflag |= CS8;
+    options1.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    options1.c_iflag &= ~(ICRNL | IUCLC | INLCR | IGNCR);
+    options1.c_oflag &= ~OPOST;
+
+    tcsetattr(serHandleK2, TCSANOW, &options1);
+    return true;
+}
+
+void Radio::updK2Comm()
+{
+    checkSerialK2();
+    if (k2RXbuffer.length() > 1) workCmdK2();
+    checkSerialK2();
+}
+
+void Radio::checkSerialK2()
+{
+    char byte = '\0';
+    int bytesRead;
+    do
+    {
+        if ((bytesRead = read(serHandleK2, &byte, 1)) > 0) k2RXbuffer.push_back(byte);
+    }
+    while (bytesRead > 0);
+
+    if (!k2TXbuffer.empty())
+    {
+        if (debugK2RTX) std::cout << " -> " << k2TXbuffer << std::endl;
+        if ((size_t)write(serHandleK2, k2TXbuffer.c_str(), k2TXbuffer.length()) == k2TXbuffer.length()) k2TXbuffer.clear();
+    }
+}
