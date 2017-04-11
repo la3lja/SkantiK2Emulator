@@ -15,7 +15,6 @@ class Config
 
 public:
     int updStatus, updSignal, txTimeout;
-    bool debugSkantiRTX, debugK2RTX;
     Config();
     bool init(std::string filename, Radio *r);
 };

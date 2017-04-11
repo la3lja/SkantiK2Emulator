@@ -10,8 +10,10 @@ SOURCES += main.cpp \
     inih/ini.c \
     k3commands.cpp
 
-#QMAKE_CFLAGS += -Ofast -mfpu=vfp -mfloat-abi=hard -march=armv6zk -mtune=arm1176jzf-s -std=c++11
-QMAKE_CXXFLAGS += -Ofast -mfpu=vfp -mfloat-abi=hard -march=armv6zk -mtune=arm1176jzf-s -std=c++11
+GIT_VERSION = $$system(git --git-dir $$PWD/.git --work-tree $$PWD describe --always --tags --long)
+DEFINES += GIT_VERSION=\\\"$$GIT_VERSION\\\"
+
+QMAKE_CXXFLAGS += -Ofast -mfpu=vfp -mfloat-abi=hard -std=c++11
 
 HEADERS += \
     config.h \

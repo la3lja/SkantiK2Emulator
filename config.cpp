@@ -20,8 +20,8 @@ bool Config::init(std::string filename, Radio *r)
     r->serSpeedSkanti = cfg->GetInteger("Serial config", "Skanti baud rate", 2400);
     updSignal = cfg->GetInteger("Intervals", "Signal strength update rate (seconds)", 0);
     updStatus = cfg->GetInteger("Intervals", "CU status update rate (seconds)", 0);
-    debugK2RTX = cfg->GetBoolean("Debug", "show K2/K3 serial RX/TX", false);
-    debugSkantiRTX = cfg->GetBoolean("Debug", "show Skanti serial RX/TX", false);
+    r->debugK2RTX = cfg->GetBoolean("Debug", "show K2/K3 serial RX/TX", false);
+    r->debugSkantiRTX = cfg->GetBoolean("Debug", "show Skanti serial RX/TX", false);
     r->txTimeout = cfg->GetInteger("Intervals", "TX timeout", 180);
     r->delayedTXFreqUpdate = cfg->GetBoolean("Other", "delay TX frequency update", false);
 
@@ -43,5 +43,8 @@ void Config::printConfig(Radio *r)
     std::cout << "CU status update rate (seconds)\t\t" << updStatus << std::endl;
     std::cout << "TX timeout (seconds)\t\t\t" << r->txTimeout << std::endl;
     std::cout << "Delay TX frequency update:\t\t" << r->delayedTXFreqUpdate << std::endl;
+
+    std::cout << "Show Skanti serial RX/TX\t\t" << r->debugSkantiRTX << std::endl;
+    std::cout << "Show K2/K3 serial RX/TX\t\t" << r->debugK2RTX << std::endl;
 }
 

@@ -14,7 +14,7 @@ void Radio::workCmdK2()
                 if ((int)k2RXbuffer[t] < 97) cmd.push_back(k2RXbuffer[t]);
                 else cmd.push_back(k2RXbuffer[t]-32);
             }
-            //std::cout << cmd << std::endl;
+            if (debugK2RTX) std::cout << cmd << std::endl;
             k2RXbuffer.erase(0, len+1);
 
             if      (cmd.find("AG") == 0) AG();                 // TODO: commands without functions are not implemented (yet)...

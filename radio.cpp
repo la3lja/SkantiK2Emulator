@@ -149,7 +149,7 @@ void Radio::checkSerialK2()
 
     if (!k2TXbuffer.empty())
     {
-        //std::cerr << " -> " << k2TXbuffer << std::endl;
+        if (debugK2RTX) std::cout << " -> " << k2TXbuffer << std::endl;
         if ((size_t)write(serHandleK2, k2TXbuffer.c_str(), k2TXbuffer.length()) == k2TXbuffer.length()) k2TXbuffer.clear();
     }
 }
@@ -244,11 +244,14 @@ void Radio::checkSerialSkanti()
 
     if (!skantiRXbuffer.empty())
     {
-        /*std::cerr << std::showbase // show the 0x prefix
-             << std::internal // fill between the prefix and the number
-             << std::setfill('0'); // fill with 0s
+        if (debugSkantiRTX)
+        {
+            std::cerr << std::showbase // show the 0x prefix
+                      << std::internal // fill between the prefix and the number
+                      << std::setfill('0'); // fill with 0s
 
-            std::cerr << "RX: " << std::setw(3) << std::hex << (int)skantiRXbuffer[0] << " ";*/
+            std::cerr << "RX: " << std::setw(3) << std::hex << (int)skantiRXbuffer[0] << " ";
+        }
     }
 
     if (!skantiRXbuffer.empty() && initSkantiLink() && signalState < 2)
@@ -465,12 +468,13 @@ bool Radio::sendSkantiData()
 
     if (!skantiTXbuffer.empty() && diff > cmdTimeout)
     {
-        /*std::cerr << std::showbase // show the 0x prefix
+        if (debugSkantiRTX)
+        {
+        std::cerr << std::showbase // show the 0x prefix
              << std::internal // fill between the prefix and the number
              << std::setfill('0'); // fill with 0s
-
-        //for (unsigned i=0; i<skantiTXbuffer.length(); ++i)
-        std::cerr << "TX: " << std::setw(3) << std::hex << (int)skantiTXbuffer[0] << " ";*/
+        std::cout << "TX: " << std::setw(3) << std::hex << (int)skantiTXbuffer[0] << " ";
+        }
 
         gettimeofday(&timer, NULL);
         if (write (serHandleSkanti, &skantiTXbuffer[0], 1) == 1)
@@ -510,10 +514,13 @@ bool Radio::skantiEndLink()
 
 bool Radio::writeToSkanti(char c)
 {
-    /*std::cerr << std::showbase // show the 0x prefix
-         << std::internal // fill between the prefix and the number
-         << std::setfill('0'); // fill with 0s
-    std::cerr << "TX: " << std::setw(3) << std::hex << (int)c << " " <<std::endl;*/
+    if (debugSkantiRTX)
+    {
+        std::cerr << std::showbase // show the 0x prefix
+                  << std::internal // fill between the prefix and the number
+                  << std::setfill('0'); // fill with 0s
+        std::cerr << "TX: " << std::setw(3) << std::hex << (int)c << " " <<std::endl;
+    }
 
     if (write(serHandleSkanti, &c, 1)) return true; else return false;
 }

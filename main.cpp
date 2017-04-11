@@ -32,6 +32,7 @@ void printData(Radio *r);
 
 int main()
 {
+    cout << "skanti version " << GIT_VERSION << endl;
     bool forceStatus = false;
 
     time_t print = time(NULL), now = time(NULL), sigUpdate = time(NULL)+5, statusUpdate = time(NULL), txTimer = time(NULL);

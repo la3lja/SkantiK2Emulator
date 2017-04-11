@@ -92,6 +92,7 @@ class Radio
     int ai, k2, k3;
 
 public:
+    bool debugSkantiRTX, debugK2RTX;
     std::string k2RXbuffer, k2TXbuffer, skantiRXbuffer, skantiTXbuffer, skantiCmdBuffer;
 
     Radio();
