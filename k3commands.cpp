@@ -255,12 +255,12 @@ void Radio::FA()    // FA and FB (VFO A/B Frequency; GET/SET) SET/RSP format: FA
         if (tmp <= 30000000 && tmp >= 10000)
         {
             int diff = tmp - vfoA;
-            if (!fr && diff < 100 && diff > -100 && diff != 0) // 10 Hz tune
+            if (!fr && diff < 100 && diff > -100 && diff != 0 && diff % 10 == 0) // 10 Hz tune
             {
                 if (diff > 0) UP();
                 else DN();
             }
-            else if (diff < 1000 && diff > -1000 && diff != 0) // 100 Hz tune
+            else if (diff < 1000 && diff > -1000 && diff != 0 && diff % 100 == 0) // 100 Hz tune
             {
                 if (!fr && tunerate != HZ100) { skantiCmdBuffer += "w1\r"; tunerate = HZ100; }
                 diff /= 100;
@@ -274,7 +274,7 @@ void Radio::FA()    // FA and FB (VFO A/B Frequency; GET/SET) SET/RSP format: FA
                 }
                 freqRX = vfoA - rxFineOffsetA;
             }
-            else if (!fr && diff <= 10000 && diff >= -10000 && diff != 0) // 1 kHz tune
+            else if (!fr && diff <= 10000 && diff >= -10000 && diff != 0 && diff % 1000 == 0) // 1 kHz tune
             {
                 if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
                 diff /= 1000;
@@ -521,7 +521,7 @@ void Radio::FW() // FW (Filter Bandwidth and Number; GET/SET) Basic SET format: 
         else buf << "FW$";
         if (filter == VNARROW) buf << "0250";
         else if (filter == NARROW) buf << "1200";
-        else if (filter == WIDE) buf << "2700";
+        else if (filter == WIDE) buf << "2500";
         else if (filter == VWIDE) buf << "4000";
 
         if (k2 > 1) // K22 extended response
