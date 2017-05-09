@@ -9,7 +9,7 @@ Radio::Radio()
     skantiLinkActive = false;
     skantiReqStatus = false;
     radioOff = false;
-    ritFreq = 0; rit = false, xit = false, fr = false, ft = false, split = false;
+    ritFreq = 0; rit = false, xit = false, fr = false, ft = false, split = false, tx = false;
     rxFineOffsetA = rxFineOffsetB = 0;
     nb = 0;
     an = 1;

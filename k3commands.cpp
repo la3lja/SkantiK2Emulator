@@ -190,7 +190,7 @@ void Radio::DN()    // DN (Move VFO or Menu Entry/Parameter Down; SET only) Basi
     if (k2 < 2 && k3 == 0)  // Basic
     {
         if (tunerate != HZ10) { skantiCmdBuffer += "w0\r"; tunerate = HZ10; }
-        skantiCmdBuffer += '=';
+        skantiCmdBuffer += "=\r";
         if (!fr) rxFineOffsetA -= 10; else rxFineOffsetB -= 10;
     }
     else                    // Extended
@@ -198,14 +198,14 @@ void Radio::DN()    // DN (Move VFO or Menu Entry/Parameter Down; SET only) Basi
         if (cmd[2] != '4')
         {
             if (tunerate != HZ10) { skantiCmdBuffer += "w0\r"; tunerate = HZ10; }
-            if (cmd[2] == '2') { skantiCmdBuffer += "=\r="; (!fr?rxFineOffsetA-=20:rxFineOffsetB-=20); }
-            else if (cmd[2] == '3') { skantiCmdBuffer += "=\r=\r=\r=\r="; (!fr?rxFineOffsetA-=50:rxFineOffsetB-=50); }
+            if (cmd[2] == '2') { skantiCmdBuffer += "=\r=\r"; (!fr?rxFineOffsetA-=20:rxFineOffsetB-=20); }
+            else if (cmd[2] == '3') { skantiCmdBuffer += "=\r=\r=\r=\r=\r"; (!fr?rxFineOffsetA-=50:rxFineOffsetB-=50); }
             else { skantiCmdBuffer += '='; (!fr?rxFineOffsetA-=10:rxFineOffsetB-=10);}
         }
         else
         {
             if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
-            skantiCmdBuffer += '=';
+            skantiCmdBuffer += "=\r";
             freqRX -= 1000;
         }
     }
@@ -247,6 +247,8 @@ void Radio::FA()    // FA and FB (VFO A/B Frequency; GET/SET) SET/RSP format: FA
 {
     if (cmd.length() == 13)   // new freq sent on K2 port
     {
+        std::string temp = cmd;
+
         cmd.erase(0, 5);      // ignore FA and 3 first digits
         cmd.pop_back();
         cmd.push_back('0');     // insert 0 for last digit
@@ -257,8 +259,17 @@ void Radio::FA()    // FA and FB (VFO A/B Frequency; GET/SET) SET/RSP format: FA
             int diff = tmp - vfoA;
             if (!fr && diff < 100 && diff > -100 && diff != 0 && diff % 10 == 0) // 10 Hz tune
             {
-                if (diff > 0) UP();
-                else DN();
+                if (!fr && tunerate != HZ10) { skantiCmdBuffer += "w0\r"; tunerate = HZ10; }
+                diff /= 10;
+                if (diff < 0)
+                {
+                    for (int i=0; i>diff; --i) { skantiCmdBuffer += "=\r"; vfoA -= 10; }
+                }
+                else
+                {
+                    for (int i=0; i<diff; ++i) { skantiCmdBuffer += ">\r"; vfoA += 10; }
+                }
+                freqRX = vfoA - rxFineOffsetA;
             }
             else if (diff < 1000 && diff > -1000 && diff != 0 && diff % 100 == 0) // 100 Hz tune
             {
@@ -274,7 +285,7 @@ void Radio::FA()    // FA and FB (VFO A/B Frequency; GET/SET) SET/RSP format: FA
                 }
                 freqRX = vfoA - rxFineOffsetA;
             }
-            else if (!fr && diff <= 10000 && diff >= -10000 && diff != 0 && diff % 1000 == 0) // 1 kHz tune
+            else if (!fr && diff < 10000 && diff > -10000 && diff != 0 && diff % 1000 == 0) // 1 kHz tune
             {
                 if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
                 diff /= 1000;
@@ -308,6 +319,7 @@ void Radio::FA()    // FA and FB (VFO A/B Frequency; GET/SET) SET/RSP format: FA
                 vfoA = tmp;
             }
             else vfoA = tmp;
+
             if (ai == 1) IF();
             else if (ai == 2) { cmd.clear(); FA(); IF(); }
         }
@@ -338,7 +350,7 @@ void Radio::FB() // FB sets a virtual VFO created in SW only
                 if (diff > 0) UP();
                 else DN();
             }
-            else if (fr && diff < 1000 && diff > -1000 && diff != 0) // 100 Hz tune
+            else if (fr && diff <= 1000 && diff >= -1000 && diff != 0) // 100 Hz tune
             {
                 if (fr && tunerate != HZ100) { skantiCmdBuffer += "w1\r"; tunerate = HZ100; }
                 diff /= 100;
@@ -352,7 +364,7 @@ void Radio::FB() // FB sets a virtual VFO created in SW only
                 }
                 freqRX = vfoB - rxFineOffsetB;
             }
-            else if (fr && diff <= 10000 && diff >= -10000 && diff != 0) // 1 kHz tune
+            else if (fr && diff < 10000 && diff > -10000 && diff != 0) // 1 kHz tune
             {
                 if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
                 diff /= 1000;
@@ -1034,14 +1046,14 @@ void Radio::UP()    // UP (Move VFO or Menu Entry/Parameter Up; SET only) See DN
         if (cmd[2] != '4')
         {
             if (tunerate != HZ10) { skantiCmdBuffer += "w0\r"; tunerate = HZ10; }
-            if (cmd[2] == '2') { skantiCmdBuffer += ">\r>"; (!fr?rxFineOffsetA+=20:rxFineOffsetB+=20); }
-            else if (cmd[2] == '3') { skantiCmdBuffer += ">\r>\r>\r>\r>"; (!fr?rxFineOffsetA+=50:rxFineOffsetB+=50); }
-            else { skantiCmdBuffer += '>'; (!fr?rxFineOffsetA+=10:rxFineOffsetB+=10);}
+            if (cmd[2] == '2') { skantiCmdBuffer += ">\r>\r"; (!fr?rxFineOffsetA+=20:rxFineOffsetB+=20); }
+            else if (cmd[2] == '3') { skantiCmdBuffer += ">\r>\r>\r>\r>\r"; (!fr?rxFineOffsetA+=50:rxFineOffsetB+=50); }
+            else { skantiCmdBuffer += ">\r"; (!fr?rxFineOffsetA+=10:rxFineOffsetB+=10);}
         }
         else
         {
             if (tunerate != HZ1000) { skantiCmdBuffer += "w2\r"; tunerate = HZ1000; }
-            skantiCmdBuffer += '>';
+            skantiCmdBuffer += ">\r";
             freqRX += 1000;
         }
     }

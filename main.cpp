@@ -40,7 +40,7 @@ int main()
     Config *c = new Config();
     Radio *radio = new Radio();
     if (!c->init(CONF, radio)) return 0;
-    statusUpdate -= c->updStatus+4;
+    statusUpdate = statusUpdate - c->updStatus + 4;
 
     if (!radio->openK2Port())
     {

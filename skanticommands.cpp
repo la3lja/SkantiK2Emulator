@@ -39,7 +39,6 @@ bool Radio::openSkantiPort()
 
     tcsetattr(serHandleSkanti, TCSANOW, &options);
     skantiTXbuffer += "\7\7\7";     // sends 3 short "beeps" from Skanti indicating comms are ok
-    //updSkantiStatus();
     return true;
 }
 
@@ -214,9 +213,8 @@ void Radio::checkSerialSkanti()
         }
         else if (!skantiExpectAck && !skantiCmdBuffer.empty() && skantiTXbuffer.empty() && signalState == 0 && !skantiReqStatus)
         {
-            skantiTXbuffer += skantiCmdBuffer;
-            //if (skantiTXbuffer.length() > 3) cmdTimeout = 1200;
-            //else cmdTimeout = 500;
+            skantiTXbuffer = skantiCmdBuffer;
+
             if (!tx)
             {
                 skantiTXbuffer.push_back('\r');
@@ -320,8 +318,11 @@ bool Radio::initSkantiLink()
         {
             ++initState;
             std::cerr << "CUR initialized, continuing..." << std::endl;
+            skantiCmdBuffer.clear();
+            skantiTXbuffer.clear();
         }
         else initState = 0;
+
         gettimeofday(&initTimer, NULL);
         usleep(4000);
         skantiRXbuffer.clear();
@@ -423,11 +424,12 @@ bool Radio::writeToSkanti(char c)
 
 bool Radio::updSkantiStatus()
 {
-    if (!skantiReqStatus && signalState == 0 && skantiTXbuffer.empty())
+    if (!skantiReqStatus && signalState == 0 && skantiTXbuffer.empty() && skantiCmdBuffer.empty())
     {
         skantiTXbuffer.push_back(')');
         skantiReqStatus = true;
         gettimeofday(&statusTimer, NULL);
+        std::cerr << "Reading status cmd 29" << std::endl;
     }
     else if (skantiReqStatus && !skantiRXbuffer.empty() && skantiRXbuffer[0] != '>')
     {
@@ -591,20 +593,20 @@ bool Radio::updSkantiStatus()
 
         skantiStatusBuffer.clear();
         skantiRXbuffer.clear();
-        if (!tx)
-        {
-            skantiTXbuffer.push_back(ACK);
-            skantiTXbuffer.push_back(EOT);
-        }
+        skantiTXbuffer.push_back(ACK);
+        if (!tx) skantiTXbuffer.push_back(EOT);
+
         skantiReqStatus = false;
         timeoutCtr = 0;
     }
+    else skantiReqStatus = false;
+
     return true;
 }
 
 bool Radio::updSignalStatus()
 {
-    if (signalState == 0 && !skantiReqStatus && skantiTXbuffer.empty())
+    if (signalState == 0 && !skantiReqStatus && skantiTXbuffer.empty() && skantiCmdBuffer.empty())
     {
         gettimeofday(&sigTimer, NULL);
         skantiTXbuffer.push_back('*');
